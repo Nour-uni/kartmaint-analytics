@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: kart
+      POSTGRES_PASSWORD: kart
+      POSTGRES_DB: kartmaint
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kart -d kartmaint"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # One-off pipeline steps:  docker compose run --rm app python -m kartmaint.etl
+  app:
+    build: .
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PG_HOST: db
+    volumes: [".:/app"]
+    working_dir: /app
+    command: ["python", "-c", "print('Use: docker compose run --rm app python -m kartmaint.<step>')"]
+
+  dashboard:
+    build: .
+    environment:
+      PG_HOST: db
+    volumes: [".:/app"]
+    working_dir: /app
+    ports: ["8501:8501"]
+    command: ["streamlit", "run", "dashboard/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+
+volumes:
+  pgdata:
